@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Claquete">
+<meta name="theme-color" content="#000000">
+<title>Claquete</title>
+<style>
+  :root{
+    --linha:#3d3d3d;
+    --rotulo:#7a7a7a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#000;overflow:hidden}
+  body{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    color:#fff;
+    display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    user-select:none;-webkit-user-select:none;
+  }
+
+  /* ---- Tela de permissão ---- */
+  #porta{
+    position:fixed;inset:0;z-index:50;background:#000;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding:32px;text-align:center;
+  }
+  #porta h1{font-size:15px;letter-spacing:.22em;font-weight:700}
+  #porta p{font-size:13px;line-height:1.65;color:var(--rotulo);max-width:30ch}
+  #porta .status{font-size:11px;color:#555;margin-top:10px}
+  #porta button{
+    font:inherit;font-size:14px;font-weight:700;letter-spacing:.14em;
+    background:#fff;color:#000;border:0;border-radius:5px;
+    padding:16px 34px;cursor:pointer;
+  }
+  #porta button:active{opacity:.8}
+
+  /* ---- Braço ---- */
+  #braco{
+    height:74px;flex-shrink:0;position:relative;overflow:hidden;
+    border-bottom:2px solid #fff;
+  }
+  #listras{
+    position:absolute;left:0;bottom:0;width:180%;height:52px;
+    display:flex;transform-origin:0 100%;
+    transform:rotate(-13deg);
+    transition:transform .09s cubic-bezier(.2,.9,.3,1);
+    border:2px solid #fff;
+  }
+  #listras.fechado{transform:rotate(0deg)}
+  #listras div{flex:1}
+  #listras div:nth-child(odd){background:#fff}
+  #listras div:nth-child(even){background:#000}
+
+  /* ---- Corpo ---- */
+  #corpo{flex:1;display:flex;flex-direction:column;min-height:0}
+  .linha{display:flex;border-bottom:1px solid var(--linha);flex:1;min-height:0}
+  .celula{
+    flex:1;padding:8px 13px;min-width:0;
+    display:flex;flex-direction:column;justify-content:center;gap:3px;
+    border-right:1px solid var(--linha);cursor:pointer;
+  }
+  .celula:last-child{border-right:0}
+  .celula .rot{font-size:9px;font-weight:600;color:var(--rotulo);letter-spacing:.14em}
+  .celula .val{
+    font-size:clamp(20px,7vw,34px);font-weight:800;letter-spacing:-.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .celula .val.pequeno{font-size:clamp(14px,4.4vw,20px)}
+  #take.aceso .val{color:#25e07a}
+
+  /* ---- Controles ---- */
+  #controles{
+    flex-shrink:0;display:grid;grid-template-columns:repeat(4,1fr);
+    gap:7px;padding:11px;background:#0d0d0d;
+  }
+  #controles button{
+    font:inherit;font-size:9.5px;font-weight:700;letter-spacing:.1em;
+    padding:11px 2px;border:0;border-radius:4px;
+    background:#232323;color:#6d6d6d;cursor:pointer;
+    transition:all .15s;
+  }
+  #controles button:active{opacity:.8}
+  #controles button.on{background:#25e07a;color:#000}
+
+  /* ---- Indicador de força ---- */
+  #forca{
+    position:fixed;top:calc(env(safe-area-inset-top) + 4px);right:8px;
+    font-size:9px;color:#454545;z-index:20;letter-spacing:.06em;
+    font-weight:600;
+  }
+
+  /* ---- Editor ---- */
+  #editor{
+    position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.94);
+    display:none;flex-direction:column;justify-content:center;
+    gap:18px;padding:34px;
+  }
+  #editor.aberto{display:flex}
+  #editor label{font-size:10px;letter-spacing:.2em;color:var(--rotulo)}
+  #editor input{
+    font:inherit;font-size:26px;font-weight:800;
+    background:#181818;color:#fff;border:1px solid var(--linha);
+    border-radius:5px;padding:15px;width:100%;
+  }
+  #editor .botoes{display:flex;gap:11px}
+  #editor .botoes button{
+    flex:1;font:inherit;font-size:12px;font-weight:700;letter-spacing:.12em;
+    padding:15px;border:0;border-radius:5px;background:#232323;color:#fff;cursor:pointer;
+  }
+  #editor .botoes button:active{opacity:.8}
+  #editor .botoes button.principal{background:#fff;color:#000}
+</style>
+</head>
+<body>
+
+<div id="porta">
+  <h1>CLAQUETE</h1>
+  <p>Toque para liberar o acelerômetro e o áudio. O iOS exige que isso venha de um toque seu.</p>
+  <div class="status" id="portaStatus"></div>
+  <button id="btnPorta">INICIAR</button>
+</div>
+
+<div id="forca">—</div>
+
+<div id="braco"><div id="listras"></div></div>
+
+<div id="corpo">
+  <div class="linha">
+    <div class="celula" data-edita="producao">
+      <div class="rot">PRODUÇÃO</div>
+      <div class="val pequeno" id="v-producao">PRODUÇÃO</div>
+    </div>
+  </div>
+  <div class="linha">
+    <div class="celula" id="rolo"><div class="rot">ROLO</div><div class="val" id="v-rolo">1</div></div>
+    <div class="celula" data-edita="cena"><div class="rot">CENA</div><div class="val" id="v-cena">1</div></div>
+    <div class="celula" id="take"><div class="rot">TAKE</div><div class="val" id="v-take">1</div></div>
+  </div>
+  <div class="linha">
+    <div class="celula" data-edita="diretor">
+      <div class="rot">DIREÇÃO</div>
+      <div class="val pequeno" id="v-diretor">DIREÇÃO</div>
+    </div>
+    <div class="celula" data-edita="camera" style="flex:0 0 26%">
+      <div class="rot">CÂM</div><div class="val" id="v-camera">A</div>
+    </div>
+  </div>
+  <div class="linha">
+    <div class="celula" id="fps"><div class="rot">FPS</div><div class="val pequeno" id="v-fps">25</div></div>
+    <div class="celula"><div class="rot">DATA</div><div class="val pequeno" id="v-data">—</div></div>
+    <div class="celula"><div class="rot">HORA</div><div class="val pequeno" id="v-hora">—</div></div>
+  </div>
+</div>
+
+<div id="controles">
+  <button id="c-gesto" class="on">GESTO</button>
+  <button id="c-auto" class="on">AUTO TAKE</button>
+  <button id="c-mos">MOS</button>
+  <button id="c-tail">TAIL</button>
+</div>
+
+<div id="editor">
+  <label id="ed-rot">CAMPO</label>
+  <input id="ed-input" autocapitalize="characters" autocomplete="off" spellcheck="false">
+  <div class="botoes">
+    <button id="ed-cancela">CANCELAR</button>
+    <button id="ed-ok" class="principal">OK</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= Estado ================= */
+const S = {
+  producao:"PRODUÇÃO", diretor:"DIREÇÃO", camera:"A", cena:"1",
+  rolo:1, take:1, fpsIdx:2,
+  gesto:true, auto:true, mos:false, tail:false,
+  batendo:false
+};
+const FPS = [23,24,25,29,30,50,59,60];
+
+/* ================= Áudio ================= */
+let ctx = null, buffer = null;
+
+function iniciarAudio(){
+  ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
+  const sr = ctx.sampleRate;
+  const dur = 0.045;
+  const n = Math.floor(sr * dur);
+  buffer = ctx.createBuffer(1, n, sr);
+  const d = buffer.getChannelData(0);
+
+  let ultimo = 0;
+  for (let i = 0; i < n; i++){
+    const t = i / sr;
+    const env = Math.exp(-t * 420);
+    const ruido = Math.random() * 2 - 1;
+    ultimo = ultimo + 0.55 * (ruido - ultimo);
+    const corpo = Math.sin(2 * Math.PI * 1400 * t) * 0.35;
+    d[i] = (ultimo * 0.65 + corpo) * env * 0.95;
+  }
+
+  const mudo = ctx.createBufferSource();
+  mudo.buffer = ctx.createBuffer(1, 1, sr);
+  mudo.connect(ctx.destination);
+  mudo.start(0);
+}
+
+function tocarClap(){
+  if (!ctx || !buffer) return;
+  if (ctx.state === "suspended") ctx.resume();
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const g = ctx.createGain();
+  g.gain.value = 1.0;
+  src.connect(g).connect(ctx.destination);
+  src.start(0);
+}
+
+/* ================= Detecção do impacto ================= */
+/* Limiares mais forgiving: Android tende a ser mais sensível/ruído que iOS.
+   Usamos uma máquina de estado simples: sobe → pico → cai → impacto. */
+const D = {
+  /* Limiares em m/s² (não em g). iPhone lê ~9.8 de baseline, Android varia.
+     Aqui usamos aceleração *sem gravidade* (userAcceleration). */
+  limiarPico:  1.8,    // começa a rastrear quando passa disso
+  quedaMinima: 0.9,    // tem que cair pelo menos isso do pico
+  intervaloMin: 500,   // ms de cooldown
+  
+  anterior: 0, 
+  subindo: false, 
+  pico: 0, 
+  ultimo: 0,
+  
+  historico: []  // para debug
+};
+
+function processarMovimento(ev){
+  const a = ev.acceleration;
+  if (!a || a.x === null) return;
+  
+  const m = Math.hypot(a.x, a.y, a.z);
+  
+  // mostrar força em tempo real
+  elForca.textContent = m.toFixed(2);
+  
+  // guardar últimos 30 valores pra debug (opcional)
+  D.historico.push(m);
+  if (D.historico.length > 30) D.historico.shift();
+
+  if (S.gesto){
+    // Fase 1: movimento subindo?
+    if (m > D.limiarPico && m > D.anterior){
+      D.subindo = true;
+      D.pico = Math.max(D.pico, m);
+    } 
+    // Fase 2: era pico, agora tá caindo?
+    else if (D.subindo && (D.pico - m) >= D.quedaMinima){
+      D.subindo = false;
+      D.pico = 0;
+      
+      const agora = Date.now();
+      if (agora - D.ultimo > D.intervaloMin){
+        D.ultimo = agora;
+        bater();
+      }
+    }
+    // Fase 3: volta ao silêncio
+    else if (m < 0.3){
+      D.subindo = false;
+      D.pico = 0;
+    }
+  }
+  D.anterior = m;
+}
+
+/* ================= Ação ================= */
+function bater(){
+  if (S.mos || S.batendo) return;
+  S.batendo = true;
+
+  listras.classList.add("fechado");
+  elTake.classList.add("aceso");
+  
+  if (navigator.vibrate) navigator.vibrate(18);
+  tocarClap();
+
+  setTimeout(() => {
+    listras.classList.remove("fechado");
+    elTake.classList.remove("aceso");
+    S.batendo = false;
+    if (S.auto){ S.take++; render(); }
+  }, 900);
+}
+
+/* ================= Render ================= */
+const $ = id => document.getElementById(id);
+const listras = $("listras");
+const elTake  = $("take");
+const elForca = $("forca");
+
+for (let i = 0; i < 14; i++) listras.appendChild(document.createElement("div"));
+
+function render(){
+  $("v-producao").textContent = S.producao;
+  $("v-diretor").textContent  = S.diretor;
+  $("v-camera").textContent   = S.camera;
+  $("v-cena").textContent     = S.cena + (S.tail ? " ⟲" : "");
+  $("v-rolo").textContent     = S.rolo;
+  $("v-take").textContent     = S.take;
+  $("v-fps").textContent      = FPS[S.fpsIdx];
+}
+
+function relogio(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,"0");
+  $("v-data").textContent = `${p(d.getDate())}/${p(d.getMonth()+1)}`;
+  $("v-hora").textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+setInterval(relogio, 500); relogio(); render();
+
+/* ================= Interação ================= */
+$("rolo").addEventListener("click", () => { S.rolo++; S.take = 1; render(); });
+$("take").addEventListener("click", () => { S.take++; render(); });
+$("fps").addEventListener("click",  () => { S.fpsIdx = (S.fpsIdx+1) % FPS.length; render(); });
+
+function alterna(id, chave){
+  $(id).addEventListener("click", () => {
+    S[chave] = !S[chave];
+    $(id).classList.toggle("on", S[chave]);
+    if (chave === "gesto"){
+      if (S.gesto && "DeviceMotionEvent" in window){
+        window.addEventListener("devicemotion", processarMovimento);
+      } else {
+        window.removeEventListener("devicemotion", processarMovimento);
+      }
+    }
+    render();
+  });
+}
+alterna("c-gesto","gesto");
+alterna("c-auto","auto");
+alterna("c-mos","mos");
+alterna("c-tail","tail");
+
+let ultimoToque = 0;
+$("corpo").addEventListener("click", e => {
+  if (e.target.closest("[data-edita],#rolo,#take,#fps")) return;
+  const agora = Date.now();
+  if (agora - ultimoToque < 320) bater();
+  ultimoToque = agora;
+});
+$("braco").addEventListener("click", bater);
+
+/* ================= Editor de campos ================= */
+let campoAtual = null;
+const ROTULOS = {producao:"PRODUÇÃO", diretor:"DIREÇÃO", camera:"CÂMERA", cena:"CENA"};
+
+document.querySelectorAll("[data-edita]").forEach(el => {
+  el.addEventListener("click", () => {
+    campoAtual = el.dataset.edita;
+    $("ed-rot").textContent = ROTULOS[campoAtual];
+    $("ed-input").value = S[campoAtual];
+    $("editor").classList.add("aberto");
+    setTimeout(() => $("ed-input").focus(), 60);
+  });
+});
+
+$("ed-cancela").addEventListener("click", () => $("editor").classList.remove("aberto"));
+$("ed-ok").addEventListener("click", () => {
+  const v = $("ed-input").value.trim();
+  if (v){
+    S[campoAtual] = v;
+    if (campoAtual === "cena") S.take = 1;
+  }
+  $("editor").classList.remove("aberto");
+  render();
+});
+
+$("ed-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") $("ed-ok").click();
+  if (e.key === "Escape") $("ed-cancela").click();
+});
+
+/* ================= Inicialização ================= */
+const portaStatus = $("portaStatus");
+
+$("btnPorta").addEventListener("click", async () => {
+  try { iniciarAudio(); } catch(e){ console.error("Audio init:", e); }
+
+  // Tentar pedir permissão (iOS 13+)
+  if (typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission === "function"){
+    try {
+      const r = await DeviceMotionEvent.requestPermission();
+      if (r === "granted"){
+        window.addEventListener("devicemotion", processarMovimento);
+        portaStatus.textContent = "Acelerômetro liberado ✓";
+      } else {
+        S.gesto = false;
+        $("c-gesto").classList.remove("on");
+        portaStatus.textContent = "Permissão negada";
+      }
+    } catch(e){
+      console.error("Permission request failed:", e);
+      S.gesto = false;
+      $("c-gesto").classList.remove("on");
+      portaStatus.textContent = "Erro ao solicitar permissão";
+    }
+  } else {
+    // Android ou navegadores sem requestPermission
+    window.addEventListener("devicemotion", processarMovimento);
+    portaStatus.textContent = "Acelerômetro ativo (sem permissão necessária)";
+  }
+
+  setTimeout(() => {
+    $("porta").style.display = "none";
+  }, 600);
+});
+
+/* Screen wake lock */
+if ("wakeLock" in navigator){
+  const manter = () => navigator.wakeLock.request("screen").catch(()=>{});
+  $("btnPorta").addEventListener("click", manter);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") manter();
+  });
+}
+</script>
+</body>
+</html>
