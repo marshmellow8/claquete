@@ -91,6 +91,10 @@
   #controles button.on{background:#25e07a;color:#000}
 
   /* ---- Indicador de força ---- */
+  #versao{
+    position:fixed;top:calc(env(safe-area-inset-top) + 4px);left:8px;
+    font-size:9px;color:#454545;z-index:20;letter-spacing:.06em;font-weight:600;
+  }
   #forca{
     position:fixed;top:calc(env(safe-area-inset-top) + 4px);right:8px;
     font-size:9px;color:#454545;z-index:20;letter-spacing:.06em;
@@ -129,6 +133,7 @@
 </div>
 
 <div id="forca">—</div>
+<div id="versao">v2.1</div>
 
 <div id="braco"><div id="listras"></div></div>
 
@@ -163,7 +168,7 @@
 <div id="controles">
   <button id="c-gesto" class="on">GESTO</button>
   <button id="c-auto" class="on">AUTO TAKE</button>
-  <button id="c-mos">MOS</button>
+  <button id="c-mute">MUTE</button>
   <button id="c-tail">TAIL</button>
 </div>
 
@@ -183,7 +188,7 @@
 const S = {
   producao:"PRODUÇÃO", observacoes:"—", head:1, cena:"1",
   take:1, clapIdx:0,
-  gesto:true, auto:true, mos:false, tail:false,
+  gesto:true, auto:true, mute:false, tail:false,
   batendo:false
 };
 
@@ -195,6 +200,7 @@ const S = {
 const CLAPS = ["clap1.wav", "clap2.wav", "clap3.wav", "clap4.wav"];
 let ctx = null;
 const buffers = [null, null, null, null];
+const falhas  = [null, null, null, null];
 
 function iniciarAudio(){
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
@@ -210,7 +216,7 @@ function iniciarAudio(){
       .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
       .then(a => ctx.decodeAudioData(a))
       .then(b => { buffers[i] = b; render(); })
-      .catch(() => { buffers[i] = null; render(); });
+      .catch(err => { buffers[i] = null; falhas[i] = String(err); render(); });
   });
 }
 
@@ -283,14 +289,15 @@ function processarMovimento(ev){
 
 /* ================= Ação ================= */
 function bater(){
-  if (S.mos || S.batendo) return;
+  if (S.batendo) return;
   S.batendo = true;
 
+  // MUTE silencia apenas o audio; o braco e o take seguem normais.
   listras.classList.add("fechado");
   elTake.classList.add("aceso");
-  
+
   if (navigator.vibrate) navigator.vibrate(18);
-  tocarClap();
+  if (!S.mute) tocarClap();
 
   setTimeout(() => {
     listras.classList.remove("fechado");
@@ -315,6 +322,7 @@ function render(){
   $("v-cena").textContent     = S.cena + (S.tail ? " ⟲" : "");
   $("v-take").textContent     = S.take;
   $("v-clap").textContent     = S.clapIdx + 1;
+  $("v-clap").style.opacity   = buffers[S.clapIdx] ? "1" : "0.3";
 }
 
 function relogio(){
@@ -382,7 +390,7 @@ function alterna(id, chave){
 }
 alterna("c-gesto","gesto");
 alterna("c-auto","auto");
-alterna("c-mos","mos");
+alterna("c-mute","mute");
 alterna("c-tail","tail");
 
 let ultimoToque = 0;
