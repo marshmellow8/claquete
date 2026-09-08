@@ -71,8 +71,14 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .celula .val.pequeno{font-size:clamp(20px,5.5vw,28px)}
+  /* quebra em ate duas linhas, cortando com reticencias na segunda */
+  .celula .val.duasLinhas{
+    white-space:normal;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+    overflow:hidden;line-height:1.1;
+  }
   .celula .val.mini{font-size:clamp(15px,3.6vw,19px)}
-  .celula .val.grande{font-size:clamp(32px,10vw,48px)}
+  .celula .val.grande{font-size:clamp(26px,8vw,40px)}
   .celula .rot.grande{font-size:clamp(10px,1.8vw,12px)}
   .celula.aceso .val{color:#25e07a}
 
@@ -133,7 +139,7 @@
 </div>
 
 <div id="forca">—</div>
-<div id="versao">v2.5</div>
+<div id="versao">v2.6</div>
 
 <div id="braco"><div id="listras"></div></div>
 
@@ -141,7 +147,7 @@
   <div class="linha">
     <div class="celula" data-edita="producao">
       <div class="rot grande">PRODUÇÃO</div>
-      <div class="val grande" id="v-producao">PRODUÇÃO</div>
+      <div class="val grande duasLinhas" id="v-producao">PRODUÇÃO</div>
     </div>
     <div class="celula" id="clap" style="flex:0 0 17%">
       <div class="rot">CLAP</div>
@@ -156,7 +162,7 @@
   <div class="linha">
     <div class="celula" data-edita="observacoes">
       <div class="rot">OBSERVAÇÕES</div>
-      <div class="val pequeno" id="v-observacoes" style="line-height:1.2;white-space:normal;max-height:2.4em;overflow:hidden;">—</div>
+      <div class="val pequeno duasLinhas" id="v-observacoes">—</div>
     </div>
   </div>
   <div class="linha">
