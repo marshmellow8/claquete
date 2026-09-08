@@ -236,9 +236,9 @@ function tocarClap(){
 const D = {
   /* Limiares em m/s² (não em g). iPhone lê ~9.8 de baseline, Android varia.
      Aqui usamos aceleração *sem gravidade* (userAcceleration). */
-  limiarPico:  2.5,    // começa a rastrear quando passa disso
-  quedaMinima: 1.2,    // tem que cair pelo menos isso do pico
-  intervaloMin: 600,   // ms de cooldown
+  limiarPico:  4.1,    // começa a rastrear quando passa disso
+  quedaMinima: 3.2,    // tem que cair pelo menos isso do pico
+  intervaloMin: 1000,   // ms de cooldown
   
   anterior: 0, 
   subindo: false, 
