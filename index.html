@@ -84,7 +84,7 @@
 
   /* ---- Controles ---- */
   #controles{
-    flex-shrink:0;display:grid;grid-template-columns:repeat(4,1fr);
+    flex-shrink:0;display:grid;grid-template-columns:repeat(3,1fr);
     gap:7px;padding:11px;background:#0d0d0d;
   }
   #controles button{
@@ -139,7 +139,7 @@
 </div>
 
 <div id="forca">—</div>
-<div id="versao">v2.6</div>
+<div id="versao">v2.7</div>
 
 <div id="braco"><div id="listras"></div></div>
 
@@ -175,7 +175,6 @@
   <button id="c-gesto" class="on">GESTO</button>
   <button id="c-auto" class="on">AUTO TAKE</button>
   <button id="c-mute">MUTE</button>
-  <button id="c-tail">TAIL</button>
 </div>
 
 <div id="editor">
@@ -194,7 +193,7 @@
 const S = {
   producao:"PRODUÇÃO", observacoes:"—", head:1, cena:"1",
   take:1, clapIdx:0,
-  gesto:true, auto:true, mute:false, tail:false,
+  gesto:true, auto:true, mute:false,
   batendo:false
 };
 
@@ -206,7 +205,6 @@ const S = {
 const CLAPS = ["clap1.wav", "clap2.wav", "clap3b.wav", "clap4b.wav"];
 let ctx = null;
 const buffers = [null, null, null, null];
-const falhas  = [null, null, null, null];
 
 function iniciarAudio(){
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
@@ -222,7 +220,7 @@ function iniciarAudio(){
       .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
       .then(a => ctx.decodeAudioData(a))
       .then(b => { buffers[i] = b; render(); })
-      .catch(err => { buffers[i] = null; falhas[i] = String(err); render(); });
+      .catch(() => { buffers[i] = null; render(); });
   });
 }
 
@@ -237,11 +235,10 @@ function tocarClap(){
 }
 
 /* ================= Detecção do impacto ================= */
-/* Limiares mais forgiving: Android tende a ser mais sensível/ruído que iOS.
-   Usamos uma máquina de estado simples: sobe → pico → cai → impacto. */
+/* Máquina de estado: sobe → pico → cai → impacto. Dispara na desaceleração
+   brusca (o braço parando), não no pico do movimento. Valores em m/s²,
+   sobre a aceleração sem gravidade. */
 const D = {
-  /* Limiares em m/s² (não em g). iPhone lê ~9.8 de baseline, Android varia.
-     Aqui usamos aceleração *sem gravidade* (userAcceleration). */
   limiarPico:  12.1,    // começa a rastrear quando passa disso
   quedaMinima: 5.2,    // tem que cair pelo menos isso do pico
   intervaloMin: 2000,   // ms de cooldown
@@ -249,9 +246,7 @@ const D = {
   anterior: 0, 
   subindo: false, 
   pico: 0, 
-  ultimo: 0,
-  
-  historico: []  // para debug
+  ultimo: 0
 };
 
 function processarMovimento(ev){
@@ -260,21 +255,14 @@ function processarMovimento(ev){
   
   const m = Math.hypot(a.x, a.y, a.z);
   
-  // mostrar força em tempo real
   elForca.textContent = m.toFixed(2);
-  
-  // guardar últimos 30 valores pra debug (opcional)
-  D.historico.push(m);
-  if (D.historico.length > 30) D.historico.shift();
 
   if (S.gesto){
-    // Fase 1: movimento subindo?
-    if (m > D.limiarPico && m > D.anterior){
+    if (m > D.limiarPico && m > D.anterior){          // subindo
       D.subindo = true;
       D.pico = Math.max(D.pico, m);
-    } 
-    // Fase 2: era pico, agora tá caindo?
-    else if (D.subindo && (D.pico - m) >= D.quedaMinima){
+    }
+    else if (D.subindo && (D.pico - m) >= D.quedaMinima){   // impacto
       D.subindo = false;
       D.pico = 0;
       
@@ -284,8 +272,7 @@ function processarMovimento(ev){
         bater();
       }
     }
-    // Fase 3: volta ao silêncio
-    else if (m < 0.3){
+    else if (m < 0.3){                                 // repouso
       D.subindo = false;
       D.pico = 0;
     }
@@ -325,7 +312,7 @@ function render(){
   $("v-producao").textContent = S.producao;
   $("v-observacoes").textContent = S.observacoes;
   $("v-head").textContent     = S.head;
-  $("v-cena").textContent     = S.cena + (S.tail ? " ⟲" : "");
+  $("v-cena").textContent     = S.cena;
   $("v-take").textContent     = S.take;
   $("v-clap").textContent     = S.clapIdx + 1;
   $("v-clap").style.opacity   = buffers[S.clapIdx] ? "1" : "0.3";
@@ -397,7 +384,6 @@ function alterna(id, chave){
 alterna("c-gesto","gesto");
 alterna("c-auto","auto");
 alterna("c-mute","mute");
-alterna("c-tail","tail");
 
 let ultimoToque = 0;
 $("corpo").addEventListener("click", e => {
