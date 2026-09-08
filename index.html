@@ -71,6 +71,7 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .celula .val.pequeno{font-size:clamp(20px,5.5vw,28px)}
+  .celula .val.mini{font-size:clamp(15px,3.6vw,19px)}
   .celula .val.grande{font-size:clamp(32px,10vw,48px)}
   .celula .rot.grande{font-size:clamp(10px,1.8vw,12px)}
   .celula.aceso .val{color:#25e07a}
@@ -137,6 +138,10 @@
       <div class="rot grande">PRODUÇÃO</div>
       <div class="val grande" id="v-producao">PRODUÇÃO</div>
     </div>
+    <div class="celula" id="clap" style="flex:0 0 17%">
+      <div class="rot">CLAP</div>
+      <div class="val mini" id="v-clap">1</div>
+    </div>
   </div>
   <div class="linha">
     <div class="celula" id="cena"><div class="rot">CENA</div><div class="val" id="v-cena">1</div></div>
@@ -177,46 +182,45 @@
 /* ================= Estado ================= */
 const S = {
   producao:"PRODUÇÃO", observacoes:"—", head:1, cena:"1",
-  take:1,
+  take:1, clapIdx:0,
   gesto:true, auto:true, mos:false, tail:false,
   batendo:false
 };
 
-/* ================= Áudio ================= */
-let ctx = null, buffer = null;
+/* ================= Audio ================= */
+/* Os quatro claps ficam no mesmo diretorio do index.html:
+   clap1.wav ... clap4.wav. Todos sao decodificados no INICIAR,
+   para que a batida nao espere por rede nem por decode. */
+
+const CLAPS = ["clap1.wav", "clap2.wav", "clap3.wav", "clap4.wav"];
+let ctx = null;
+const buffers = [null, null, null, null];
 
 function iniciarAudio(){
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
-  const sr = ctx.sampleRate;
-  const dur = 0.045;
-  const n = Math.floor(sr * dur);
-  buffer = ctx.createBuffer(1, n, sr);
-  const d = buffer.getChannelData(0);
 
-  let ultimo = 0;
-  for (let i = 0; i < n; i++){
-    const t = i / sr;
-    const env = Math.exp(-t * 420);
-    const ruido = Math.random() * 2 - 1;
-    ultimo = ultimo + 0.55 * (ruido - ultimo);
-    const corpo = Math.sin(2 * Math.PI * 1400 * t) * 0.35;
-    d[i] = (ultimo * 0.65 + corpo) * env * 0.95;
-  }
-
+  // desbloqueio do iOS: precisa de um som disparado dentro do gesto
   const mudo = ctx.createBufferSource();
-  mudo.buffer = ctx.createBuffer(1, 1, sr);
+  mudo.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
   mudo.connect(ctx.destination);
   mudo.start(0);
+
+  CLAPS.forEach((nome, i) => {
+    fetch(nome)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(a => ctx.decodeAudioData(a))
+      .then(b => { buffers[i] = b; render(); })
+      .catch(() => { buffers[i] = null; render(); });
+  });
 }
 
 function tocarClap(){
-  if (!ctx || !buffer) return;
+  const b = buffers[S.clapIdx];
+  if (!ctx || !b) return;
   if (ctx.state === "suspended") ctx.resume();
   const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  const g = ctx.createGain();
-  g.gain.value = 1.0;
-  src.connect(g).connect(ctx.destination);
+  src.buffer = b;
+  src.connect(ctx.destination);
   src.start(0);
 }
 
@@ -226,9 +230,9 @@ function tocarClap(){
 const D = {
   /* Limiares em m/s² (não em g). iPhone lê ~9.8 de baseline, Android varia.
      Aqui usamos aceleração *sem gravidade* (userAcceleration). */
-  limiarPico:  4,    // começa a rastrear quando passa disso
-  quedaMinima: 3.2,    // tem que cair pelo menos isso do pico
-  intervaloMin: 1000,   // ms de cooldown
+  limiarPico:  2.5,    // começa a rastrear quando passa disso
+  quedaMinima: 1.2,    // tem que cair pelo menos isso do pico
+  intervaloMin: 600,   // ms de cooldown
   
   anterior: 0, 
   subindo: false, 
@@ -310,6 +314,7 @@ function render(){
   $("v-head").textContent     = S.head;
   $("v-cena").textContent     = S.cena + (S.tail ? " ⟲" : "");
   $("v-take").textContent     = S.take;
+  $("v-clap").textContent     = S.clapIdx + 1;
 }
 
 function relogio(){
@@ -356,6 +361,10 @@ contador("cena", () => { S.cena = String(parseInt(S.cena) + 1); S.take = 1; },
                 () => { S.cena = "1"; S.take = 1; });
 contador("head", () => { S.head++; }, () => { S.head = 1; });
 contador("take", () => { S.take++; }, () => { S.take = 1; });
+
+/* CLAP: toque cicla entre os quatro, toque longo pre-escuta o atual */
+contador("clap", () => { S.clapIdx = (S.clapIdx + 1) % CLAPS.length; },
+                 () => { tocarClap(); });
 
 function alterna(id, chave){
   $(id).addEventListener("click", () => {
