@@ -67,11 +67,13 @@
   .celula:last-child{border-right:0}
   .celula .rot{font-size:9px;font-weight:600;color:var(--rotulo);letter-spacing:.14em}
   .celula .val{
-    font-size:clamp(20px,7vw,34px);font-weight:800;letter-spacing:-.02em;
+    font-size:clamp(32px,10vw,56px);font-weight:800;letter-spacing:-.02em;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .celula .val.pequeno{font-size:clamp(14px,4.4vw,20px)}
-  #take.aceso .val{color:#25e07a}
+  .celula .val.pequeno{font-size:clamp(20px,5.5vw,28px)}
+  .celula .val.grande{font-size:clamp(32px,10vw,48px)}
+  .celula .rot.grande{font-size:clamp(10px,1.8vw,12px)}
+  .celula.aceso .val{color:#25e07a}
 
   /* ---- Controles ---- */
   #controles{
@@ -132,28 +134,24 @@
 <div id="corpo">
   <div class="linha">
     <div class="celula" data-edita="producao">
-      <div class="rot">PRODUÇÃO</div>
-      <div class="val pequeno" id="v-producao">PRODUÇÃO</div>
+      <div class="rot grande">PRODUÇÃO</div>
+      <div class="val grande" id="v-producao">PRODUÇÃO</div>
     </div>
   </div>
   <div class="linha">
-    <div class="celula" id="rolo"><div class="rot">ROLO</div><div class="val" id="v-rolo">1</div></div>
-    <div class="celula" data-edita="cena"><div class="rot">CENA</div><div class="val" id="v-cena">1</div></div>
+    <div class="celula" id="cena"><div class="rot">CENA</div><div class="val" id="v-cena">1</div></div>
+    <div class="celula" id="head"><div class="rot">HEAD</div><div class="val" id="v-head">1</div></div>
     <div class="celula" id="take"><div class="rot">TAKE</div><div class="val" id="v-take">1</div></div>
   </div>
   <div class="linha">
-    <div class="celula" data-edita="diretor">
-      <div class="rot">DIREÇÃO</div>
-      <div class="val pequeno" id="v-diretor">DIREÇÃO</div>
-    </div>
-    <div class="celula" data-edita="camera" style="flex:0 0 26%">
-      <div class="rot">CÂM</div><div class="val" id="v-camera">A</div>
+    <div class="celula" data-edita="observacoes">
+      <div class="rot">OBSERVAÇÕES</div>
+      <div class="val pequeno" id="v-observacoes" style="line-height:1.2;white-space:normal;max-height:2.4em;overflow:hidden;">—</div>
     </div>
   </div>
   <div class="linha">
-    <div class="celula" id="fps"><div class="rot">FPS</div><div class="val pequeno" id="v-fps">25</div></div>
-    <div class="celula"><div class="rot">DATA</div><div class="val pequeno" id="v-data">—</div></div>
     <div class="celula"><div class="rot">HORA</div><div class="val pequeno" id="v-hora">—</div></div>
+    <div class="celula"><div class="rot">DATA</div><div class="val pequeno" id="v-data">—</div></div>
   </div>
 </div>
 
@@ -178,12 +176,11 @@
 
 /* ================= Estado ================= */
 const S = {
-  producao:"PRODUÇÃO", diretor:"DIREÇÃO", camera:"A", cena:"1",
-  rolo:1, take:1, fpsIdx:2,
+  producao:"PRODUÇÃO", observacoes:"—", head:1, cena:"1",
+  take:1,
   gesto:true, auto:true, mos:false, tail:false,
   batendo:false
 };
-const FPS = [23,24,25,29,30,50,59,60];
 
 /* ================= Áudio ================= */
 let ctx = null, buffer = null;
@@ -229,9 +226,9 @@ function tocarClap(){
 const D = {
   /* Limiares em m/s² (não em g). iPhone lê ~9.8 de baseline, Android varia.
      Aqui usamos aceleração *sem gravidade* (userAcceleration). */
-  limiarPico:  1.8,    // começa a rastrear quando passa disso
-  quedaMinima: 0.9,    // tem que cair pelo menos isso do pico
-  intervaloMin: 500,   // ms de cooldown
+  limiarPico:  2.5,    // começa a rastrear quando passa disso
+  quedaMinima: 1.2,    // tem que cair pelo menos isso do pico
+  intervaloMin: 600,   // ms de cooldown
   
   anterior: 0, 
   subindo: false, 
@@ -309,12 +306,10 @@ for (let i = 0; i < 14; i++) listras.appendChild(document.createElement("div"));
 
 function render(){
   $("v-producao").textContent = S.producao;
-  $("v-diretor").textContent  = S.diretor;
-  $("v-camera").textContent   = S.camera;
+  $("v-observacoes").textContent = S.observacoes;
+  $("v-head").textContent     = S.head;
   $("v-cena").textContent     = S.cena + (S.tail ? " ⟲" : "");
-  $("v-rolo").textContent     = S.rolo;
   $("v-take").textContent     = S.take;
-  $("v-fps").textContent      = FPS[S.fpsIdx];
 }
 
 function relogio(){
@@ -326,9 +321,41 @@ function relogio(){
 setInterval(relogio, 500); relogio(); render();
 
 /* ================= Interação ================= */
-$("rolo").addEventListener("click", () => { S.rolo++; S.take = 1; render(); });
-$("take").addEventListener("click", () => { S.take++; render(); });
-$("fps").addEventListener("click",  () => { S.fpsIdx = (S.fpsIdx+1) % FPS.length; render(); });
+/* Pointer events funcionam em toque e mouse. Toque curto incrementa,
+   toque longo (600 ms) reseta. O reset dá um flash verde de confirmação. */
+
+function contador(id, incrementar, resetar){
+  const el = $(id);
+  let timer = null, resetou = false;
+
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    resetou = false;
+    timer = setTimeout(() => {
+      resetou = true;
+      resetar();
+      render();
+      if (navigator.vibrate) navigator.vibrate(30);
+      el.classList.add("aceso");
+      setTimeout(() => el.classList.remove("aceso"), 220);
+    }, 600);
+  });
+
+  const soltar = () => {
+    if (timer){ clearTimeout(timer); timer = null; }
+    if (!resetou){ incrementar(); render(); }
+    resetou = false;
+  };
+
+  el.addEventListener("pointerup", e => { e.preventDefault(); soltar(); });
+  el.addEventListener("pointercancel", () => { if (timer) clearTimeout(timer); timer = null; });
+  el.addEventListener("pointerleave", () => { if (timer) clearTimeout(timer); timer = null; });
+}
+
+contador("cena", () => { S.cena = String(parseInt(S.cena) + 1); S.take = 1; },
+                () => { S.cena = "1"; S.take = 1; });
+contador("head", () => { S.head++; }, () => { S.head = 1; });
+contador("take", () => { S.take++; }, () => { S.take = 1; });
 
 function alterna(id, chave){
   $(id).addEventListener("click", () => {
@@ -351,7 +378,7 @@ alterna("c-tail","tail");
 
 let ultimoToque = 0;
 $("corpo").addEventListener("click", e => {
-  if (e.target.closest("[data-edita],#rolo,#take,#fps")) return;
+  if (e.target.closest("[data-edita],#cena,#head,#take")) return;
   const agora = Date.now();
   if (agora - ultimoToque < 320) bater();
   ultimoToque = agora;
@@ -360,7 +387,7 @@ $("braco").addEventListener("click", bater);
 
 /* ================= Editor de campos ================= */
 let campoAtual = null;
-const ROTULOS = {producao:"PRODUÇÃO", diretor:"DIREÇÃO", camera:"CÂMERA", cena:"CENA"};
+const ROTULOS = {producao:"PRODUÇÃO", observacoes:"OBSERVAÇÕES", head:"HEAD", cena:"CENA"};
 
 document.querySelectorAll("[data-edita]").forEach(el => {
   el.addEventListener("click", () => {
